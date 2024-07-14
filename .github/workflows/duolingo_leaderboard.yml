@@ -1,0 +1,66 @@
+name: Duolingo Leaderboard Position
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Runs every 6 hours
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  fetch-leaderboard-position:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Fetch Duolingo leaderboard position
+        env:
+          DUOLINGO_USERNAME: ${{ secrets.DUOLINGO_USERNAME }}
+          DUOLINGO_PASSWORD: ${{ secrets.DUOLINGO_PASSWORD }}
+        run: |
+          python - <<EOF
+          import requests
+          import json
+
+          def login(username, password):
+              url = "https://www.duolingo.com/login"
+              data = {"login": username, "password": password}
+              headers = {"User-Agent": "Mozilla/5.0"}
+              response = requests.post(url, json=data, headers=headers)
+              return response.cookies.get("jwt_token")
+
+          def get_leaderboard_position(jwt_token):
+              url = "https://www.duolingo.com/2017-06-30/users/1040196921?fields=id"
+              headers = {
+                  "Authorization": f"Bearer {jwt_token}",
+                  "User-Agent": "Mozilla/5.0"
+              }
+              response = requests.get(url, headers=headers)
+              user_data = response.json()
+              return user_data.get("league_ranking", "Unknown")
+
+          jwt_token = login("$DUOLINGO_USERNAME", "$DUOLINGO_PASSWORD")
+          position = get_leaderboard_position(jwt_token)
+          
+          with open('leaderboard_position.json', 'w') as f:
+              json.dump({"position": position}, f)
+
+          print(f"Current leaderboard position: {position}")
+          EOF
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add leaderboard_position.json
+          git commit -m "Update leaderboard position" || exit 0
+          git push
