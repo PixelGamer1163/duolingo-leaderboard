@@ -32,7 +32,13 @@ jobs:
               data = {"login": username, "password": password}
               headers = {"User-Agent": "Mozilla/5.0"}
               response = requests.post(url, json=data, headers=headers)
-              return response.cookies.get("jwt_token")
+              print(f"Login status code: {response.status_code}")
+              jwt_token = response.cookies.get("jwt_token")
+              if jwt_token:
+                  print("JWT token obtained successfully")
+              else:
+                  print("Failed to obtain JWT token")
+              return jwt_token
 
           def get_leaderboard_position(jwt_token, user_id):
               url = f"https://www.duolingo.com/2017-06-30/users/{user_id}?fields=id,username,league_ranking"
@@ -41,14 +47,19 @@ jobs:
                   "User-Agent": "Mozilla/5.0"
               }
               response = requests.get(url, headers=headers)
+              print(f"Leaderboard request status code: {response.status_code}")
+              print(f"Response content: {response.text}")
               user_data = response.json()
               return user_data.get("league_ranking", "Unknown")
 
           jwt_token = login(os.environ["DUOLINGO_USERNAME"], os.environ["DUOLINGO_PASSWORD"])
-          position = get_leaderboard_position(jwt_token, os.environ["DUOLINGO_USER_ID"])
-
-          print(f"Current leaderboard position: {position}")
-          print(f"::set-output name=leaderboard_position::{position}")
+          if jwt_token:
+              position = get_leaderboard_position(jwt_token, os.environ["DUOLINGO_USER_ID"])
+              print(f"Current leaderboard position: {position}")
+              print(f"::set-output name=leaderboard_position::{position}")
+          else:
+              print("Failed to login. Please check your credentials.")
+              print("::set-output name=leaderboard_position::Login Failed")
         shell: python
 
       - name: Display leaderboard position
