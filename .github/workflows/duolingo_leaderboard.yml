@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v4  # Updated to v4
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
@@ -26,27 +26,52 @@ jobs:
           import os
           import json
 
-          def get_leaderboard_position(jwt_token, user_id):
-              url = f"https://www.duolingo.com/2017-06-30/users/{user_id}?fields=id,username,league_ranking"
+          def get_user_data(jwt_token, user_id):
+              url = f"https://www.duolingo.com/2017-06-30/users/{user_id}?fields=id,username,currentCourse,courses"
+              headers = {
+                  "Authorization": f"Bearer {jwt_token}",
+                  "User-Agent": "Mozilla/5.0"
+              }
+              response = requests.get(url, headers=headers)
+              print(f"User data request status code: {response.status_code}")
+              return response.json()
+
+          def get_leaderboard_data(jwt_token, leaderboard_id, user_id):
+              url = f"https://duolingo-leaderboards-prod.duolingo.com/leaderboards/{leaderboard_id}/users/{user_id}"
               headers = {
                   "Authorization": f"Bearer {jwt_token}",
                   "User-Agent": "Mozilla/5.0"
               }
               response = requests.get(url, headers=headers)
               print(f"Leaderboard request status code: {response.status_code}")
-              print(f"Response content: {response.text}")
-              user_data = response.json()
-              return user_data.get("league_ranking", "Unknown")
+              return response.json()
 
           jwt_token = os.environ["DUOLINGO_JWT"]
           user_id = os.environ["DUOLINGO_USER_ID"]
           
-          position = get_leaderboard_position(jwt_token, user_id)
-          print(f"Current leaderboard position: {position}")
+          user_data = get_user_data(jwt_token, user_id)
+          print(f"User data: {json.dumps(user_data, indent=2)}")
           
-          # Use the new way to set output
+          # Assuming the leaderboard ID is part of the current course data
+          current_course = user_data.get('currentCourse', {})
+          leaderboard_id = current_course.get('leaderboardId')
+          
+          if leaderboard_id:
+              leaderboard_data = get_leaderboard_data(jwt_token, leaderboard_id, user_id)
+              print(f"Leaderboard data: {json.dumps(leaderboard_data, indent=2)}")
+              
+              # Extract ranking information from leaderboard_data
+              rank = leaderboard_data.get('rank')
+              tier = leaderboard_data.get('tier')
+              
+              result = f"Rank: {rank}, Tier: {tier}"
+          else:
+              result = "Could not determine leaderboard ID"
+          
+          print(f"Leaderboard position: {result}")
+          
           with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-              print(f"leaderboard_position={position}", file=fh)
+              print(f"leaderboard_position={result}", file=fh)
         shell: python
 
       - name: Display leaderboard position
