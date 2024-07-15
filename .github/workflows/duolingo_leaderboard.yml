@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.PAT }}  # Use PAT for checkout
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -26,10 +28,12 @@ jobs:
         env:
           DUOLINGO_USERNAME: ${{ secrets.DUOLINGO_USERNAME }}
           DUOLINGO_PASSWORD: ${{ secrets.DUOLINGO_PASSWORD }}
+          DUOLINGO_USER_ID: ${{ secrets.DUOLINGO_USER_ID }}
         run: |
           python - <<EOF
           import requests
           import json
+          import os
 
           def login(username, password):
               url = "https://www.duolingo.com/login"
@@ -38,8 +42,8 @@ jobs:
               response = requests.post(url, json=data, headers=headers)
               return response.cookies.get("jwt_token")
 
-          def get_leaderboard_position(jwt_token):
-              url = "https://www.duolingo.com/2017-06-30/users/1040196921?fields=id"
+          def get_leaderboard_position(jwt_token, user_id):
+              url = f"https://www.duolingo.com/2017-06-30/users/{user_id}?fields=id,username,league_ranking"
               headers = {
                   "Authorization": f"Bearer {jwt_token}",
                   "User-Agent": "Mozilla/5.0"
@@ -48,8 +52,8 @@ jobs:
               user_data = response.json()
               return user_data.get("league_ranking", "Unknown")
 
-          jwt_token = login("$DUOLINGO_USERNAME", "$DUOLINGO_PASSWORD")
-          position = get_leaderboard_position(jwt_token)
+          jwt_token = login(os.environ["DUOLINGO_USERNAME"], os.environ["DUOLINGO_PASSWORD"])
+          position = get_leaderboard_position(jwt_token, os.environ["DUOLINGO_USER_ID"])
           
           with open('leaderboard_position.json', 'w') as f:
               json.dump({"position": position}, f)
@@ -59,8 +63,10 @@ jobs:
 
       - name: Commit and push if changed
         run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add leaderboard_position.json
           git commit -m "Update leaderboard position" || exit 0
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}  # Use PAT for push
