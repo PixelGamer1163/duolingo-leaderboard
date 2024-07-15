@@ -1,19 +1,12 @@
 name: Duolingo Leaderboard Position
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
   fetch-leaderboard-position:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-        with:
-          token: ${{ secrets.PAT }}  # Use PAT for checkout
-
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -30,10 +23,9 @@ jobs:
           DUOLINGO_PASSWORD: ${{ secrets.DUOLINGO_PASSWORD }}
           DUOLINGO_USER_ID: ${{ secrets.DUOLINGO_USER_ID }}
         run: |
-          python - <<EOF
           import requests
-          import json
           import os
+          import json
 
           def login(username, password):
               url = "https://www.duolingo.com/login"
@@ -54,19 +46,10 @@ jobs:
 
           jwt_token = login(os.environ["DUOLINGO_USERNAME"], os.environ["DUOLINGO_PASSWORD"])
           position = get_leaderboard_position(jwt_token, os.environ["DUOLINGO_USER_ID"])
-          
-          with open('leaderboard_position.json', 'w') as f:
-              json.dump({"position": position}, f)
 
           print(f"Current leaderboard position: {position}")
-          EOF
+          print(f"::set-output name=leaderboard_position::{position}")
+        shell: python
 
-      - name: Commit and push if changed
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add leaderboard_position.json
-          git commit -m "Update leaderboard position" || exit 0
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}  # Use PAT for push
+      - name: Display leaderboard position
+        run: echo "Your current Duolingo leaderboard position is ${{ steps.fetch-leaderboard-position.outputs.leaderboard_position }}"
