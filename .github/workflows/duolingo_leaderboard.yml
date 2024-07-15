@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4  # Updated to v4
         with:
           python-version: '3.x'
 
@@ -19,26 +19,12 @@ jobs:
 
       - name: Fetch Duolingo leaderboard position
         env:
-          DUOLINGO_USERNAME: ${{ secrets.DUOLINGO_USERNAME }}
-          DUOLINGO_PASSWORD: ${{ secrets.DUOLINGO_PASSWORD }}
+          DUOLINGO_JWT: ${{ secrets.DUOLINGO_JWT }}
           DUOLINGO_USER_ID: ${{ secrets.DUOLINGO_USER_ID }}
         run: |
           import requests
           import os
           import json
-
-          def login(username, password):
-              url = "https://www.duolingo.com/login"
-              data = {"login": username, "password": password}
-              headers = {"User-Agent": "Mozilla/5.0"}
-              response = requests.post(url, json=data, headers=headers)
-              print(f"Login status code: {response.status_code}")
-              jwt_token = response.cookies.get("jwt_token")
-              if jwt_token:
-                  print("JWT token obtained successfully")
-              else:
-                  print("Failed to obtain JWT token")
-              return jwt_token
 
           def get_leaderboard_position(jwt_token, user_id):
               url = f"https://www.duolingo.com/2017-06-30/users/{user_id}?fields=id,username,league_ranking"
@@ -52,14 +38,15 @@ jobs:
               user_data = response.json()
               return user_data.get("league_ranking", "Unknown")
 
-          jwt_token = login(os.environ["DUOLINGO_USERNAME"], os.environ["DUOLINGO_PASSWORD"])
-          if jwt_token:
-              position = get_leaderboard_position(jwt_token, os.environ["DUOLINGO_USER_ID"])
-              print(f"Current leaderboard position: {position}")
-              print(f"::set-output name=leaderboard_position::{position}")
-          else:
-              print("Failed to login. Please check your credentials.")
-              print("::set-output name=leaderboard_position::Login Failed")
+          jwt_token = os.environ["DUOLINGO_JWT"]
+          user_id = os.environ["DUOLINGO_USER_ID"]
+          
+          position = get_leaderboard_position(jwt_token, user_id)
+          print(f"Current leaderboard position: {position}")
+          
+          # Use the new way to set output
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              print(f"leaderboard_position={position}", file=fh)
         shell: python
 
       - name: Display leaderboard position
